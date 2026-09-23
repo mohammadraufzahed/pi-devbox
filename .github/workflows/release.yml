@@ -17,14 +17,20 @@ jobs:
       # download/inspect (pi installs from git tags directly, but a
       # tarball helps npm-style consumers and archives).
       - name: Pack tarball
-        run: npm pack --ignore-scripts
+        id: pack
+        shell: bash
+        run: |
+          tarball=$(npm pack --ignore-scripts | tail -1)
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
 
       - name: GitHub Release
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "${{ github.ref_name }}" ./*.tgz \
-          --title "pi-devbox ${{ github.ref_name }}" \
-          --generate-notes
+        run: |
+          gh release create "${{ github.ref_name }}" "${{ steps.pack.outputs.tarball }}" \
+            --title "pi-devbox ${{ github.ref_name }}" \
+            --generate-notes
 
       # Uncomment to also publish to npm (needs an NPM_TOKEN secret —
       # `npm login` once, create a granular token, add it in repo
