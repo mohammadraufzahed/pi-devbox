@@ -29,7 +29,7 @@ while devbox provides them deterministically.
 
 ```bash
 # as a pi package (recommended) — pinned to a release tag
-pi install git:github.com/mohammadraufzahed/pi-devbox@v1.0.0
+pi install git:github.com/mohammadraufzahed/pi-devbox@v2.0.0
 
 # or try it for one run
 pi -e git:github.com/mohammadraufzahed/pi-devbox
