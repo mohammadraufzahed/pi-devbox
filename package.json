@@ -1,0 +1,15 @@
+{
+  "name": "pi-devbox",
+  "version": "1.0.0",
+  "description": "Pi coding agent extension: first-class devbox tools — run, script, add, remove, search, services, env, config, generate, update, init.",
+  "keywords": ["pi-package", "devbox", "pi-extension"],
+  "license": "MIT",
+  "repository": "mohammadraufzahed/pi-devbox",
+  "pi": {
+    "extensions": ["./extensions/index.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  }
+}

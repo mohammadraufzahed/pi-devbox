@@ -28,16 +28,16 @@ while devbox provides them deterministically.
 ## Install
 
 ```bash
-# global — every pi session
+# as a pi package (recommended) — pinned to a release tag
+pi install git:github.com/mohammadraufzahed/pi-devbox@v1.0.0
+
+# or try it for one run
+pi -e git:github.com/mohammadraufzahed/pi-devbox
+
+# or manual — drop the extension file in place
 mkdir -p ~/.pi/agent/extensions/pi-devbox
-curl -fsSL https://raw.githubusercontent.com/mohammadraufzahed/pi-devbox/main/index.ts \
-  -o ~/.pi/agent/extensions/pi-devbox/index.ts
-
-# or per project
-mkdir -p .pi/extensions && cp index.ts .pi/extensions/
-
-# or one-shot
-pi --extension /path/to/pi-devbox/index.ts -p "run the tests"
+curl -fsSL https://raw.githubusercontent.com/mohammadraufzahed/pi-devbox/main/extensions/index.ts \
+  -o ~/.pi/agent/extensions/pi-devbox/extensions/index.ts
 ```
 
 Then enable the tools: `--tools read,bash,devbox_info,devbox_run,devbox_add,devbox_remove,devbox_services,devbox_init`

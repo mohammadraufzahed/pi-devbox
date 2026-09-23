@@ -1,0 +1,40 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pack a tarball so the release has a stable artifact users can
+      # download/inspect (pi installs from git tags directly, but a
+      # tarball helps npm-style consumers and archives).
+      - name: Pack tarball
+        run: npm pack --ignore-scripts
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${{ github.ref_name }}" ./*.tgz \
+          --title "pi-devbox ${{ github.ref_name }}" \
+          --generate-notes
+
+      # Uncomment to also publish to npm (needs an NPM_TOKEN secret —
+      # `npm login` once, create a granular token, add it in repo
+      # Settings → Secrets → Actions). npm + the "pi-package" keyword
+      # makes the package eligible for the Pi package gallery.
+      # - name: npm publish
+      #   uses: actions/setup-node@v4
+      #   with:
+      #     node-version: 24
+      #     registry-url: https://registry.npmjs.org
+      # - run: npm publish --access public
+      #   env:
+      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
