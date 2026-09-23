@@ -10,11 +10,16 @@ uses the project's declared toolchain instead of guessing at the host.
 | Tool | What it does |
 |---|---|
 | `devbox_info` | Detect `devbox.json`, list declared packages & services |
+| `devbox_config` | Parsed `devbox.json` — packages, env, scripts, includes (JSON) |
 | `devbox_run` | `devbox run -- sh -c <cmd>` — builds/tests inside the project env |
-| `devbox_add` | Add packages to `devbox.json` (`php81`, `nodejs_24`, `mysql84`, ...) |
-| `devbox_remove` | Remove packages |
+| `devbox_script` | Run a named `shell.scripts` entry from `devbox.json` |
+| `devbox_add` / `devbox_remove` | Mutate `devbox.json` packages |
+| `devbox_search` | `devbox search` nixpkgs before adding |
 | `devbox_services` | `start` / `stop` / `restart` / `ls` declared services (db, redis, meilisearch...) |
-| `devbox_init` | Scaffold `devbox.json` in a non-devbox project (+ initial packages) |
+| `devbox_env` | Env vars inside the devbox env (`MYSQL_UNIX_PORT`, `REDIS_HOST`, ...), optional filter |
+| `devbox_generate` | `devbox generate dockerfile|devcontainer|direnv` |
+| `devbox_update` | `devbox update` — bump package pins |
+| `devbox_init` | Scaffold `devbox.json` (+ initial packages) |
 
 Prompt guidelines nudge the agent to prefer `devbox_run` over `bash`
 whenever a `devbox.json` exists — the host may lack php/composer/etc.
