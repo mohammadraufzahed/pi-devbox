@@ -1,0 +1,241 @@
+/**
+ * pi-devbox — devbox tools for the pi coding agent.
+ *
+ * Lets the agent work inside the project's devbox environment instead of
+ * guessing at the host toolchain:
+ *
+ *   devbox_info      — detect devbox.json, list packages & services
+ *   devbox_run       — run a command via `devbox run` (project toolchain)
+ *   devbox_add       — add packages to devbox.json
+ *   devbox_remove    — remove packages
+ *   devbox_services  — start/stop/ls/restart declared services (db, redis, ...)
+ *   devbox_init      — scaffold devbox.json for a non-devbox project
+ *
+ * Load: pi --extension /path/to/pi-devbox/index.ts
+ * or drop this file in .pi/extensions/ (project) or
+ * ~/.pi/agent/extensions/ (global).
+ */
+
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { Type } from "typebox";
+
+const MAX_OUT = 8000;
+const DEFAULT_TIMEOUT = 300_000;
+
+interface RunResult {
+	code: number;
+	out: string;
+	err: string;
+	timedOut: boolean;
+}
+
+function run(
+	args: string[],
+	cwd: string,
+	timeout = DEFAULT_TIMEOUT,
+): Promise<RunResult> {
+	return new Promise((resolve) => {
+		execFile(
+			"devbox",
+			args,
+			{ cwd, timeout, maxBuffer: 16 * 1024 * 1024 },
+			(err, stdout, stderr) => {
+				resolve({
+					code:
+						err && typeof (err as { code?: number }).code === "number"
+							? ((err as { code?: number }).code ?? 1)
+							: err
+								? 1
+								: 0,
+					out: String(stdout ?? ""),
+					err: String(stderr ?? ""),
+					timedOut: Boolean((err as { killed?: boolean } | null)?.killed),
+				});
+			},
+		);
+	});
+}
+
+function text(r: RunResult): string {
+	const body = (r.out + (r.err ? "\n--- stderr ---\n" + r.err : "")).trim();
+	const trunc =
+		body.length > MAX_OUT
+			? body.slice(-MAX_OUT) + `\n\n[truncated — ${body.length} chars total]`
+			: body;
+	return `exit ${r.code}${r.timedOut ? " (timeout)" : ""}\n${trunc || "(no output)"}`;
+}
+
+export default function piDevbox(pi: ExtensionAPI) {
+	const hasDevboxJson = (cwd: string) =>
+		existsSync(join(cwd, "devbox.json"));
+
+	pi.registerTool({
+		name: "devbox_info",
+		label: "Devbox Info",
+		description:
+			"Inspect the devbox environment of the current project: whether devbox.json exists, which packages and services are declared, and the devbox version.",
+		promptSnippet: "Inspect the project's devbox environment",
+		promptGuidelines: [
+			"Call devbox_info first when working in an unfamiliar project to learn the available toolchain and services.",
+		],
+		parameters: Type.Object({}),
+		async execute(_id, _params, _signal, _onUpdate, ctx) {
+			const cwd = ctx.cwd;
+			if (!hasDevboxJson(cwd)) {
+				return {
+					content: [
+						{
+							type: "text",
+							text: "No devbox.json in this directory — the project is not a devbox environment. Use devbox_init to scaffold one, or plain shell tools for host commands.",
+						},
+					],
+					details: { devbox: false },
+				};
+			}
+			const r = await run(["ls", "--json"], cwd, 30_000);
+			return {
+				content: [{ type: "text", text: text(r) }],
+				details: { devbox: true, code: r.code },
+			};
+		},
+	});
+
+	pi.registerTool({
+		name: "devbox_run",
+		label: "Devbox Run",
+		description:
+			"Run a shell command inside the project's devbox environment (`devbox run -- sh -c <command>`). The project's declared packages and env vars are available — use this instead of bash for builds, tests, and project scripts.",
+		promptSnippet: "Run a command in the project's devbox environment",
+		promptGuidelines: [
+			"Prefer devbox_run over bash whenever the project has a devbox.json — the host may lack the right toolchain.",
+			"For long-running services use devbox_services instead.",
+		],
+		parameters: Type.Object({
+			command: Type.String({ description: "Shell command to run" }),
+			timeout_ms: Type.Optional(
+				Type.Number({ description: "Timeout in ms (default 300000)" }),
+			),
+		}),
+		async execute(_id, params, _signal, _onUpdate, ctx) {
+			const r = await run(
+				["run", "--quiet", "--", "sh", "-c", params.command],
+				ctx.cwd,
+				params.timeout_ms ?? DEFAULT_TIMEOUT,
+			);
+			return {
+				content: [{ type: "text", text: text(r) }],
+				details: { code: r.code },
+			};
+		},
+	});
+
+	pi.registerTool({
+		name: "devbox_add",
+		label: "Devbox Add",
+		description:
+			"Add packages to the project's devbox.json (e.g. php81, nodejs_24, mysql84). Equivalent to `devbox add <pkg>...`.",
+		promptSnippet: "Add packages to devbox.json",
+		parameters: Type.Object({
+			packages: Type.Array(Type.String(), {
+				description: "Nix package names, e.g. [\"php81\", \"redis\"]",
+				minItems: 1,
+			}),
+		}),
+		async execute(_id, params, _signal, _onUpdate, ctx) {
+			const r = await run(["add", ...params.packages], ctx.cwd, 300_000);
+			return {
+				content: [{ type: "text", text: text(r) }],
+				details: { code: r.code },
+			};
+		},
+	});
+
+	pi.registerTool({
+		name: "devbox_remove",
+		label: "Devbox Remove",
+		description: "Remove packages from the project's devbox.json.",
+		promptSnippet: "Remove packages from devbox.json",
+		parameters: Type.Object({
+			packages: Type.Array(Type.String(), { minItems: 1 }),
+		}),
+		async execute(_id, params, _signal, _onUpdate, ctx) {
+			const r = await run(["rm", ...params.packages], ctx.cwd, 120_000);
+			return {
+				content: [{ type: "text", text: text(r) }],
+				details: { code: r.code },
+			};
+		},
+	});
+
+	pi.registerTool({
+		name: "devbox_services",
+		label: "Devbox Services",
+		description:
+			"Manage the project's devbox services (mysql, redis, php-fpm, ... whatever devbox.json declares): start, stop, restart, or list.",
+		promptSnippet: "Manage devbox services",
+		promptGuidelines: [
+			"Start services before running tests that need a database; stop them when done.",
+		],
+		parameters: Type.Object({
+			action: Type.Union(
+				[
+					Type.Literal("start"),
+					Type.Literal("stop"),
+					Type.Literal("restart"),
+					Type.Literal("ls"),
+				],
+				{ description: "Service action" },
+			),
+			services: Type.Optional(
+				Type.Array(Type.String(), {
+					description: "Specific services (default: all)",
+				}),
+			),
+		}),
+		async execute(_id, params, _signal, _onUpdate, ctx) {
+			const r = await run(
+				["services", params.action, ...(params.services ?? [])],
+				ctx.cwd,
+				180_000,
+			);
+			return {
+				content: [{ type: "text", text: text(r) }],
+				details: { code: r.code },
+			};
+		},
+	});
+
+	pi.registerTool({
+		name: "devbox_init",
+		label: "Devbox Init",
+		description:
+			"Scaffold a devbox.json in a project that doesn't have one (`devbox init`), optionally adding initial packages.",
+		promptSnippet: "Initialize devbox in the project",
+		parameters: Type.Object({
+			packages: Type.Optional(
+				Type.Array(Type.String(), {
+					description: "Initial packages, e.g. [\"nodejs_24\"]",
+				}),
+			),
+		}),
+		async execute(_id, params, _signal, _onUpdate, ctx) {
+			const r = await run(["init"], ctx.cwd, 60_000);
+			let addText = "";
+			if (r.code === 0 && params.packages?.length) {
+				const add = await run(
+					["add", ...params.packages],
+					ctx.cwd,
+					300_000,
+				);
+				addText = "\n\nadd:\n" + text(add);
+			}
+			return {
+				content: [{ type: "text", text: text(r) + addText }],
+				details: { code: r.code },
+			};
+		},
+	});
+}
