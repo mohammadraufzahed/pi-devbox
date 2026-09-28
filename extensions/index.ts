@@ -4,7 +4,7 @@
  * Lets the agent work inside the project's devbox environment instead of
  * guessing at the host toolchain:
  *
- *   devbox_info      — detect devbox.json, list packages & services
+ *   devbox_info      — detect devbox.json, list packages & devbox version
  *   devbox_config    — parsed devbox.json: packages, env, scripts, includes
  *   devbox_run       — run a command via `devbox run` (project toolchain)
  *   devbox_script    — run a named script declared in devbox.json
@@ -93,18 +93,25 @@ export default function piDevbox(pi: ExtensionAPI) {
 		name: "devbox_info",
 		label: "Devbox Info",
 		description:
-			"Inspect the devbox environment of the current project: whether devbox.json exists, which packages and services are declared, and the devbox version.",
+			"Inspect the devbox environment of the current project: whether devbox.json exists, which packages are declared, and the installed devbox version. Use devbox_services for declared services.",
 		promptSnippet: "Inspect the project's devbox environment",
 		promptGuidelines: [
-			"Call devbox_info first when working in an unfamiliar project to learn the available toolchain and services.",
+			"Call devbox_info first when working in an unfamiliar project to learn the available toolchain.",
 		],
 		parameters: Type.Object({}),
 		async execute(_id, _params, _signal, _onUpdate, ctx) {
 			if (!hasDevboxJson(ctx.cwd)) return noDevbox;
-			const r = await run(["ls", "--json"], ctx.cwd, 30_000);
+			const [ls, ver] = await Promise.all([
+				run(["ls"], ctx.cwd, 30_000),
+				run(["version"], ctx.cwd, 10_000),
+			]);
+			const version =
+				ver.code === 0 && ver.out.trim()
+					? `devbox ${ver.out.trim().split("\n")[0]}\n\n`
+					: "";
 			return {
-				content: [{ type: "text", text: text(r) }],
-				details: { devbox: true, code: r.code },
+				content: [{ type: "text", text: version + text(ls) }],
+				details: { devbox: true, code: ls.code },
 			};
 		},
 	});

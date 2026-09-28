@@ -9,7 +9,7 @@ uses the project's declared toolchain instead of guessing at the host.
 
 | Tool | What it does |
 |---|---|
-| `devbox_info` | Detect `devbox.json`, list declared packages & services |
+| `devbox_info` | Detect `devbox.json`, list declared packages & devbox version |
 | `devbox_config` | Parsed `devbox.json` — packages, env, scripts, includes (JSON) |
 | `devbox_run` | `devbox run -- sh -c <cmd>` — builds/tests inside the project env |
 | `devbox_script` | Run a named `shell.scripts` entry from `devbox.json` |
